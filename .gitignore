@@ -1,0 +1,23 @@
+# Node modules (toujours ignorer)
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Fichiers d'environnement (si tu en ajoutes plus tard)
+.env
+.env.local
+
+# Build (si tu ajoutes un bundler plus tard)
+dist/
+build/
+
+# VS Code
+.vscode/
+
+# Fichiers système
+.DS_Store
+Thumbs.db
