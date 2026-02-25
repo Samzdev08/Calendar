@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendrier</title>
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: Arial, sans-serif;
+        }
+
+        #calendar {
+            max-width: 60%;
+            margin: 40px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+
+        #trash {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 80px;
+            height: 80px;
+            background: red;
+            color: white;
+            border-radius: 50%;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 32px;
+            font-weight: bold;
+            user-select: none;
+        }
+
+        .fc-day {
+            transition: 0.2s;
+        }
+
+        .fc-day:hover {
+            background-color: #e9ecef;
+            cursor: pointer;
+        }
+
+        .fc-day.fc-day-today {
+            background-color: #f1f3f5;
+        }
+
+        #email-form {
+            text-align: center;
+            margin-top: 100px;
+        }
+
+        #email-form input {
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        #email-form button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #email-form button:hover {
+            background-color: #0056b3;
+        }
+
+        #logout-btn {
+            display: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        #logout-btn:hover {
+            background-color: #c82333;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var calendarEl = document.getElementById('calendar');
+            var trashEl = document.createElement("div");
+            trashEl.id = "trash";
+            trashEl.innerHTML = "🗑️";
+            document.body.appendChild(trashEl);
+
+            var emailForm = document.getElementById('email-form');
+            var emailInput = document.getElementById('email');
+            var passwordInput = document.getElementById('password');
+            var logoutBtn = document.getElementById('logout-btn');
+
+            let userId = null;
+
+            emailForm.addEventListener('submit', function (event) {
+                event.preventDefault();
+                var email = emailInput.value;
+                var password = passwordInput.value;
+
+                if (email && email.includes('@') && password) {
+                    fetch('http://localhost:3000/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: email, password: password })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.userId) {
+                            alert(data.message);
+                            userId = data.userId;
+
+                            emailForm.style.display = 'none';
+                            calendarEl.style.display = 'block';
+                            logoutBtn.style.display = 'block'; // Afficher le bouton de déconnexion
+                            initCalendar(userId);
+                        } else {
+                            alert(data.error || 'Erreur lors de la connexion');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erreur :', error);
+                        alert('Une erreur est survenue lors de la connexion.');
+                    });
+                } else {
+                    alert("Email ou mot de passe incorrect.");
+                }
+            });
+
+            logoutBtn.addEventListener('click', function () {
+                // Réinitialiser l'état
+                userId = null;
+                emailForm.style.display = 'block';
+                calendarEl.style.display = 'none';
+                logoutBtn.style.display = 'none';
+            });
+
+            function initCalendar(userId) {
+                var calendar = new FullCalendar.Calendar(calendarEl, {
+                    themeSystem: 'bootstrap',
+                    initialView: 'dayGridMonth',
+                    views: {
+                        multiMonthFourMonth: {
+                            type: 'multiMonth',
+                            duration: { months: 6 },
+                            buttonText: '6 Mois'
+                        }
+                    },
+                    headerToolbar: {
+                        left: 'prev,next today',
+                        center: 'title',
+                        right: 'multiMonthFourMonth,dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+                    },
+                    locale: 'fr',
+                    timeZone: 'local',
+                    selectable: true,
+                    editable: true,
+                    events: `http://localhost:3000/events/${userId}`,
+
+                    select: async function (info) {
+                        var title = prompt("Entrez le titre de l'événement :");
+                        if (title) {
+                            var newEvent = {
+                                title: title,
+                                start: info.startStr,
+                                end: info.endStr || info.startStr,
+                                allDay: info.allDay,
+                                userId: userId
+                            };
+
+                            try {
+                                let response = await fetch('http://localhost:3000/add-events', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(newEvent)
+                                });
+
+                                if (!response.ok) throw new Error("Erreur lors de l'ajout");
+                                let data = await response.json();
+                                newEvent.id = data.id;
+                                calendar.addEvent(newEvent);
+                            } catch (error) {
+                                console.error("Erreur :", error);
+                            }
+                        }
+                        calendar.unselect();
+                    },
+
+                    eventDragStart: function () {
+                        trashEl.style.display = 'flex';
+                    },
+
+                    eventDrop: async function (info) {
+                        const confirmMove = confirm(`Déplacer cet événement au ${info.event.start.toLocaleDateString()} ?`);
+                        if (!confirmMove) {
+                            info.revert();
+                        } else {
+                            try {
+                                const updatedEvent = {
+                                    title: info.event.title,
+                                    start: info.event.startStr,
+                                    end: info.event.endStr || info.event.startStr,
+                                    allDay: info.event.allDay
+                                };
+
+                                let response = await fetch(`http://localhost:3000/update-event/${userId}/${info.event.id}`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(updatedEvent)
+                                });
+
+                                if (!response.ok) throw new Error("Erreur lors de la mise à jour");
+
+                            } catch (error) {
+                                console.error("Erreur lors de la mise à jour :", error);
+                                alert("Une erreur est survenue lors de la mise à jour de l'événement.");
+                            }
+                        }
+                    },
+
+                    eventDragStop: async function (info) {
+                        const trashRect = trashEl.getBoundingClientRect();
+                        const eventRect = info.jsEvent.target.getBoundingClientRect();
+
+                        if (
+                            eventRect.right > trashRect.left &&
+                            eventRect.left < trashRect.right &&
+                            eventRect.bottom > trashRect.top &&
+                            eventRect.top < trashRect.bottom
+                        ) {
+                            const confirmDelete = confirm("Supprimer cet événement ?");
+                            if (confirmDelete) {
+                                try {
+                                    let response = await fetch(`http://localhost:3000/delete-event/${userId}/${info.event.id}`, {
+                                        method: 'DELETE'
+                                    });
+
+                                    if (!response.ok) throw new Error("Erreur lors de la suppression");
+                                    info.event.remove(); // Supprimer l'événement du calendrier
+                                } catch (error) {
+                                    console.error("Erreur de suppression :", error);
+                                }
+                            }
+                        }
+                        trashEl.style.display = 'none';
+                    },
+
+                    // Ajout de la fonction pour éditer l'événement en cliquant dessus
+                    eventClick: async function (info) {
+                        var newTitle = prompt("Modifiez le titre de l'événement :", info.event.title);
+                        if (newTitle && newTitle !== info.event.title) {
+                            try {
+                                const updatedEvent = {
+                                    title: newTitle,
+                                    start: info.event.startStr,
+                                    end: info.event.endStr || info.event.startStr,
+                                    allDay: info.event.allDay
+                                };
+
+                                let response = await fetch(`http://localhost:3000/update-event/${userId}/${info.event.id}`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(updatedEvent)
+                                });
+
+                                if (!response.ok) throw new Error("Erreur lors de la mise à jour");
+                                info.event.setProp('title', newTitle); 
+                            } catch (error) {
+                                console.error("Erreur lors de la mise à jour :", error);
+                                alert("Une erreur est survenue lors de la mise à jour de l'événement.");
+                            }
+                        }
+                    }
+                });
+
+                calendar.render();
+            }
+        });
+    </script>
+</head>
+
+<body>
+    <div id="email-form">
+        <h2>Connexion</h2>
+        <form>
+            <input type="email" id="email" placeholder="Votre email" required /><br>
+            <input type="password" id="password" placeholder="Mot de passe" required /><br>
+            <button type="submit">Se connecter</button>
+        </form>
+    </div>
+
+    <button id="logout-btn">Se déconnecter</button>
+
+    <div id="calendar"></div>
+</body>
+
+</html>
